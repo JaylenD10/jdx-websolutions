@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Contact form submissions
+model Contact {
+  id           String   @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  company      String?
+  businessType BusinessType
+  services     String[]
+  message      String   @db.Text
+  status       ContactStatus @default(NEW)
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([email])
+  @@index([createdAt])
+}
+
+// Consultation bookings
+model Consultation {
+  id               String   @id @default(cuid())
+  bookingId        String   @unique
+  name             String
+  email            String
+  phone            String
+  company          String?
+  preferredDate    DateTime
+  preferredTime    String
+  consultationType ConsultationType
+  projectDetails   String   @db.Text
+  budget           String?
+  timeline         String?
+  status           BookingStatus @default(PENDING)
+  meetingLink      String?
+  notes            String?  @db.Text
+  reminderSent     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@index([email])
+  @@index([preferredDate])
+  @@index([status])
+  @@index([bookingId])
+}
+
+// Available time slots configuration
+model TimeSlot {
+  id        String   @id @default(cuid())
+  dayOfWeek Int      // 0 = Sunday, 6 = Saturday
+  startTime String   // e.g., "09:00"
+  endTime   String   // e.g., "10:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([dayOfWeek, startTime])
+  @@index([dayOfWeek])
+}
+
+// Blocked dates (holidays, vacations, etc.)
+model BlockedDate {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  reason    String?
+  allDay    Boolean  @default(true)
+  startTime String?  // If not all day
+  endTime   String?  // If not all day
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([date])
+}
+
+// Email templates for customization
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  subject   String
+  content   String   @db.Text
+  variables String[] // Available variables for this template
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Enums
+enum BusinessType {
+  individual
+  startup
+  small_business
+  enterprise
+}
+
+enum ConsultationType {
+  video
+  phone
+  in_person
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESPONDED
+  CLOSED
+}
