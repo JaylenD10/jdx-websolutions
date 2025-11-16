@@ -130,30 +130,154 @@ export async function checkTimeSlotAvailability(
 }
 
 export async function getAvailableTimeSlots(date: string) {
-  const dateObj = parseISO(date);
-  const dayOfWeek = dateObj.getDay();
+  try {
+    const dateObj = parseISO(date);
+    const dayOfWeek = dateObj.getDay();
+    const startOfDayDate = startOfDay(dateObj);
+    const endOfDayDate = endOfDay(dateObj);
 
-  // Get configured time slots for this day
-  const timeSlots = await prisma.timeSlot.findMany({
-    where: {
-      dayOfWeek,
-      isActive: true,
-    },
-    orderBy: {
-      startTime: 'asc',
-    },
-  });
+    // Get configured time slots for this day
+    const configuredSlots = await prisma.timeSlot.findMany({
+      where: {
+        dayOfWeek,
+        isActive: true,
+      },
+      orderBy: {
+        startTime: 'asc',
+      },
+    });
 
-  // Check availability for each slot
-  const availabilityPromises = timeSlots.map(async (slot) => {
-    const isAvailable = await checkTimeSlotAvailability(date, slot.startTime);
-    return {
-      time: formatTime(slot.startTime),
-      available: isAvailable,
-    };
-  });
+    // If no configured slots, use default slots
+    let slots = configuredSlots;
+    if (slots.length === 0) {
+      // Default slots for weekdays
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        slots = [
+          {
+            id: '1',
+            dayOfWeek,
+            startTime: '09:00',
+            endTime: '10:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: '2',
+            dayOfWeek,
+            startTime: '10:00',
+            endTime: '11:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: '3',
+            dayOfWeek,
+            startTime: '11:00',
+            endTime: '12:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: '4',
+            dayOfWeek,
+            startTime: '14:00',
+            endTime: '15:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: '5',
+            dayOfWeek,
+            startTime: '15:00',
+            endTime: '16:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: '6',
+            dayOfWeek,
+            startTime: '16:00',
+            endTime: '17:00',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ];
+      } else {
+        // No slots for weekends
+        return [];
+      }
+    }
 
-  return await Promise.all(availabilityPromises);
+    // Check if date is blocked
+    const blockedDates = await prisma.blockedDate.findMany({
+      where: {
+        date: {
+          gte: startOfDayDate,
+          lte: endOfDayDate,
+        },
+      },
+    });
+
+    // Get existing bookings for this date
+    const existingBookings = await prisma.consultation.findMany({
+      where: {
+        preferredDate: {
+          gte: startOfDayDate,
+          lte: endOfDayDate,
+        },
+        status: {
+          notIn: [BookingStatus.CANCELLED],
+        },
+      },
+    });
+
+    // Build available slots array
+    const availableSlots = slots.map((slot) => {
+      const timeFormatted = formatTime(slot.startTime);
+
+      // Check if this time is blocked
+      const isBlocked = blockedDates.some((blocked) => {
+        if (blocked.allDay) return true;
+        if (blocked.startTime && blocked.endTime) {
+          return (
+            slot.startTime >= blocked.startTime &&
+            slot.startTime < blocked.endTime
+          );
+        }
+        return false;
+      });
+
+      // Check if this time is already booked
+      const isBooked = existingBookings.some(
+        (booking) => booking.preferredTime === timeFormatted
+      );
+
+      return {
+        time: timeFormatted,
+        available: !isBlocked && !isBooked,
+      };
+    });
+
+    return availableSlots;
+  } catch (error) {
+    console.error('Error in getAvailableTimeSlots:', error);
+    // Return default slots on error
+    return [
+      { time: '09:00 AM', available: true },
+      { time: '10:00 AM', available: true },
+      { time: '11:00 AM', available: true },
+      { time: '02:00 PM', available: true },
+      { time: '03:00 PM', available: true },
+      { time: '04:00 PM', available: true },
+      { time: '05:00 PM', available: true },
+    ];
+  }
 }
 
 export async function getUpcomingConsultations(days: number = 7) {

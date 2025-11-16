@@ -36,19 +36,6 @@ export async function POST(request: NextRequest) {
     //Validate the data
     const validatedData = consultationSchema.parse(body);
 
-    // Validate required fields
-    if (
-      !body.name ||
-      !body.email ||
-      !body.preferredDate ||
-      !body.preferredTime
-    ) {
-      return NextResponse.json(
-        { message: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
     // Check availability (implement your logic here)
     const isAvailable = await checkTimeSlotAvailability(
       validatedData.preferredDate,
@@ -75,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Format date for display
     const formattedDate = format(
       parseISO(validatedData.preferredDate),
-      'MMMM d, yyyy'
+      'YYYY-MM-DD'
     );
     const dataWithFormattedDate = {
       ...validatedData,
@@ -332,6 +319,121 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { bookingId, newDate, newTime } = body;
+
+    if (!bookingId || !newDate || !newTime) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Missing required fields for rescheduling',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Find the consultation
+    const consultation = await prisma.consultation.findUnique({
+      where: { bookingId },
+    });
+
+    if (!consultation) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Booking not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Check if new slot is available
+    const isAvailable = await checkTimeSlotAvailability(newDate, newTime);
+
+    if (!isAvailable) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'The selected time slot is not available',
+          availableSlots: await getAvailableTimeSlots(newDate),
+        },
+        { status: 400 }
+      );
+    }
+
+    const newDateTime = combineDateAndTime(newDate, newTime);
+
+    // Reschedule Zoom meeting if it exists
+    if (consultation.meetingLink && consultation.notes) {
+      const meetingIdMatch = consultation.notes.match(/Zoom Meeting ID: (\d+)/);
+      if (meetingIdMatch) {
+        const meetingId = parseInt(meetingIdMatch[1]);
+
+        try {
+          // Cancel old meeting and create new one
+          await cancelConsultationMeeting(meetingId);
+
+          const newZoomMeeting = await createConsultationMeeting(
+            consultation.name,
+            consultation.email,
+            newDateTime,
+            consultation.consultationType,
+            consultation.projectDetails
+          );
+
+          // Update consultation with new meeting details
+          await prisma.consultation.update({
+            where: { bookingId },
+            data: {
+              preferredDate: newDateTime,
+              preferredTime: newTime,
+              meetingLink: newZoomMeeting.meetingUrl,
+              notes: `Zoom Meeting ID: ${newZoomMeeting.meetingId}, Password: ${newZoomMeeting.password}\nRescheduled from ${consultation.preferredDate}`,
+            },
+          });
+        } catch (error) {
+          console.error('Failed to reschedule Zoom meeting:', error);
+        }
+      }
+    } else {
+      // Just update the date and time
+      await prisma.consultation.update({
+        where: { bookingId },
+        data: {
+          preferredDate: newDateTime,
+          preferredTime: newTime,
+          notes:
+            (consultation.notes || '') +
+            `\nRescheduled from ${consultation.preferredDate}`,
+        },
+      });
+    }
+
+    // Send rescheduling notification emails
+    await sendRescheduleEmails(consultation, newDate, newTime);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Consultation rescheduled successfully',
+      newBooking: {
+        date: format(parseISO(newDate), 'MMMM d, yyyy'),
+        time: newTime,
+      },
+    });
+  } catch (error) {
+    console.error('Reschedule consultation error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to reschedule consultation',
+      },
+      { status: 500 }
+    );
+  }
+}
+
 //Helpers
 
 function combineDateAndTime(date: string, time: string): Date {
@@ -353,6 +455,52 @@ function combineDateAndTime(date: string, time: string): Date {
   }
 
   return dateObj;
+}
+
+async function sendRescheduleEmails(
+  consultation: any,
+  newDate: string,
+  newTime: string
+) {
+  const emailPromises = [];
+
+  const oldDate = format(consultation.preferredDate, 'MMMM d, yyyy');
+  const newFormattedDate = format(parseISO(newDate), 'MMMM d, yyyy');
+
+  // Company notification
+  emailPromises.push(
+    sendEmail({
+      to: process.env.NEXT_PUBLIC_COMPANY_EMAIL || 'jdxwebsolutions@gmail.com',
+      subject: `Consultation Rescheduled - ${consultation.name}`,
+      html: `
+      <h2>Consultation Rescheduled</h2>
+      <p><strong>Client:</strong> ${consultation.name}</p>
+      <p><strong>Old Date:</strong> ${oldDate} at ${consultation.preferredTime}</p>
+      <p><strong>New Date:</strong> ${newFormattedDate} at ${newTime}</p>
+      <p><strong>Booking ID:</strong> ${consultation.bookingId}</p>
+    `,
+    })
+  );
+
+  // Client confirmation
+  emailPromises.push(
+    sendEmail({
+      to: consultation.email,
+      subject: `Consultation Rescheduled - ${newFormattedDate}`,
+      html: `
+        <h2>Your Consultation Has Been Rescheduled</h2>
+        <p>Dear ${consultation.name},</p>
+        <p>Your consultation has been successfully rescheduled.</p>
+        <p><strong>New Date:</strong> ${newFormattedDate}</p>
+        <p><strong>New Time:</strong> ${newTime}</p>
+        <p>If you need to make any changes, please contact us.</p>
+      `,
+    })
+  );
+
+  await Promise.all(emailPromises).catch((error) => {
+    console.error('Failed to send reschedule emails:', error);
+  });
 }
 
 async function sendCancellationEmails(consultation: any) {

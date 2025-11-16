@@ -51,11 +51,12 @@ const CalendarBooking: React.FC<CalendarBookingProps> = ({
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [_error, setError] = useState<string | null>(null);
 
   // Fetch available time slots when date changes
   useEffect(() => {
     if (selectedDate) {
-      fetchAvailableSlots(format(selectedDate, "yyyy-MM-dd"));
+      fetchAvailableSlots(format(selectedDate, "MMMM d, yyyy"));
     }
   }, [selectedDate]);
 
@@ -80,8 +81,25 @@ const CalendarBooking: React.FC<CalendarBookingProps> = ({
 
   const fetchAvailableSlots = async (date: string) => {
     setLoadingSlots(true);
+    setError(null);
+
     try {
-      const response = await fetch(`/api/consultation?date=${date}`);
+      const response = await fetch(`/api/consultation?date=${date}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      // Check if response is ok
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Check content type
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server returned non-JSON response");
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -109,14 +127,14 @@ const CalendarBooking: React.FC<CalendarBookingProps> = ({
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setSelectedTime(""); // Reset time when date changes
-    const formattedDate = format(date, "yyyy-MM-dd");
+    const formattedDate = format(date, "MMMM d, yyyy");
     onChange(formattedDate, "");
   };
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
     if (selectedDate) {
-      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      const formattedDate = format(selectedDate, "MMMM d, yyyy");
       onChange(formattedDate, time);
     }
   };
@@ -153,7 +171,7 @@ const CalendarBooking: React.FC<CalendarBookingProps> = ({
     if (dayOfWeek === 0 || dayOfWeek === 6) return true;
 
     // Check if date is in blocked dates
-    const dateStr = format(date, "yyyy-MM-dd");
+    const dateStr = format(date, "MMMM d, yyyy");
     if (blockedDates.includes(dateStr)) return true;
 
     return false;

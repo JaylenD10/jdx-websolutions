@@ -59,6 +59,30 @@ export default function Consultation() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Only proceed if we're on the final step
+    if (currentStep !== 3) {
+      return;
+    }
+
+    // Validate that date and time are selected
+    if (!formData.preferredDate || !formData.preferredTime) {
+      alert("Please select both a date and time for your consultation");
+      setCurrentStep(2);
+      return;
+    }
+
+    // Validate all required fields
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.phone ||
+      !formData.projectDetails
+    ) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
