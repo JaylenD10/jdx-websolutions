@@ -276,4 +276,139 @@ export const emailTemplates = {
       </body>
     </html>
   `,
+
+  consultationCancellation: (data: any) => `<!DOCTYPE html>
+  <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #EF4444; color: white; padding: 30px; text-align: center; border-radius: 5px 5px 0 0; }
+        .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+        .cancelled-box { background-color: #FEE2E2; border: 2px solid #EF4444; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .info-box { background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .button { display: inline-block; padding: 12px 30px; background-color: #8B5CF6; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+        .button-secondary { background-color: #6B7280; }
+        .footer { margin-top: 30px; padding: 20px; text-align: center; color: #777; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        ${
+          data.type === 'company'
+            ? `
+          <div class="header">
+            <h1>⚠️ Consultation Cancelled</h1>
+          </div>
+          <div class="content">
+            <div class="cancelled-box">
+              <h3 style="margin-top: 0; color: #EF4444;">Booking Cancelled</h3>
+              <p><strong>Booking ID:</strong> ${data.bookingId}</p>
+              <p><strong>Original Date:</strong> ${data.preferredDate}</p>
+              <p><strong>Original Time:</strong> ${data.preferredTime}</p>
+              <p><strong>Cancellation Time:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="info-box">
+              <h3>Client Information</h3>
+              <p><strong>Name:</strong> ${data.name}</p>
+              <p><strong>Email:</strong> ${data.email}</p>
+              <p><strong>Phone:</strong> ${data.phone}</p>
+              <p><strong>Company:</strong> ${data.company || 'Not provided'}</p>
+            </div>
+            
+            <div class="info-box">
+              <h3>Project Details (for reference)</h3>
+              <p>${data.projectDetails}</p>
+            </div>
+            
+            <p style="margin-top: 20px;">
+              <strong>Note:</strong> The client has been notified of the cancellation. 
+              ${
+                data.consultationType === 'video'
+                  ? 'The Zoom meeting has been cancelled automatically.'
+                  : ''
+              }
+            </p>
+            
+            <center>
+              <a href="${
+                process.env.NEXT_PUBLIC_SITE_URL
+              }/admin/consultations" class="button button-secondary">
+                View All Consultations
+              </a>
+            </center>
+          </div>
+        `
+            : `
+          <div class="header">
+            <h1>Consultation Cancelled</h1>
+          </div>
+          <div class="content">
+            <p>Dear ${data.name},</p>
+            
+            <div class="cancelled-box">
+              <h3 style="margin-top: 0; color: #EF4444;">Your consultation has been cancelled</h3>
+              <p><strong>Booking ID:</strong> ${data.bookingId}</p>
+              <p><strong>Original Date:</strong> ${data.preferredDate}</p>
+              <p><strong>Original Time:</strong> ${data.preferredTime}</p>
+              <p><strong>Type:</strong> ${
+                data.consultationType === 'video'
+                  ? '📹 Video Call'
+                  : data.consultationType === 'phone'
+                  ? '📞 Phone Call'
+                  : '🤝 In-Person Meeting'
+              }</p>
+            </div>
+            
+            ${
+              data.cancellationReason
+                ? `
+              <div class="info-box">
+                <p><strong>Reason for cancellation:</strong></p>
+                <p>${data.cancellationReason}</p>
+              </div>
+            `
+                : ''
+            }
+            
+            <p>We apologize for any inconvenience this may cause.</p>
+            
+            <h3>Would you like to reschedule?</h3>
+            <p>If you'd still like to discuss your project with us, we'd be happy to find another time that works for you.</p>
+            
+            <center>
+              <a href="${
+                process.env.NEXT_PUBLIC_SITE_URL
+              }/consultation" class="button">
+                Book New Consultation
+              </a>
+              <a href="${
+                process.env.NEXT_PUBLIC_SITE_URL
+              }/contact" class="button button-secondary">
+                Contact Us
+              </a>
+            </center>
+            
+            <p style="margin-top: 30px;">
+              If you have any questions or concerns, please don't hesitate to reach out to us at 
+              <a href="mailto:${process.env.NEXT_PUBLIC_COMPANY_EMAIL}">${
+                process.env.NEXT_PUBLIC_COMPANY_EMAIL
+              }</a> 
+              or call us at ${process.env.NEXT_PUBLIC_COMPANY_PHONE}.
+            </p>
+          </div>
+        `
+        }
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${
+    process.env.NEXT_PUBLIC_COMPANY_NAME
+  }. All rights reserved.</p>
+          <p>${process.env.NEXT_PUBLIC_COMPANY_EMAIL} | ${
+    process.env.NEXT_PUBLIC_COMPANY_PHONE
+  }</p>
+        </div>
+      </div>
+    </body>
+  </html>`,
 };

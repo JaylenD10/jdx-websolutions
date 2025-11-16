@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail, emailTemplates } from '@/lib/email';
+import {
+  createConsultationBooking,
+  checkTimeSlotAvailability,
+  getAvailableTimeSlots,
+} from '@/lib/db-helpers';
+import {
+  createConsultationMeeting,
+  cancelConsultationMeeting,
+} from '@/lib/zoom';
 import { format, parseISO } from 'date-fns';
+import prisma from '@/lib/db';
 
 const consultationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -39,18 +49,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Format date for display
-    const formattedDate = format(
-      parseISO(validatedData.preferredDate),
-      'MMMM d, yyyy'
-    );
-    const dataWithFormattedDate = {
-      ...validatedData,
-      preferredDate: formattedDate,
-    };
-
     // Check availability (implement your logic here)
-    const isAvailable = await checkAvailability(
+    const isAvailable = await checkTimeSlotAvailability(
       validatedData.preferredDate,
       validatedData.preferredTime
     );
@@ -61,85 +61,115 @@ export async function POST(request: NextRequest) {
           success: false,
           message:
             'This time slot is no longer available. Please choose another time.',
+          availableSlots: await getAvailableTimeSlots(
+            validatedData.preferredDate
+          ),
         },
         { status: 400 }
       );
     }
 
     // Generate booking ID
-    const bookingId = generateBookingId();
+    const booking = await createConsultationBooking(validatedData);
+
+    // Format date for display
+    const formattedDate = format(
+      parseISO(validatedData.preferredDate),
+      'MMMM d, yyyy'
+    );
+    const dataWithFormattedDate = {
+      ...validatedData,
+      preferredDate: formattedDate,
+      bookingId: booking.bookingId,
+    };
+
+    // Combine date and time for Zoom
+    const meetingDateTime = combineDateAndTime(
+      validatedData.preferredDate,
+      validatedData.preferredTime
+    );
+
+    // Generate meeting link for video consultations
+    let meetingDetails: {
+      meetingUrl?: string;
+      meetingId?: number;
+      password?: string;
+      startUrl?: string;
+    } = {};
+
+    if (validatedData.consultationType === 'video') {
+      try {
+        const zoomMeeting = await createConsultationMeeting(
+          validatedData.name,
+          validatedData.email,
+          meetingDateTime,
+          validatedData.consultationType,
+          validatedData.projectDetails
+        );
+
+        meetingDetails = {
+          meetingUrl: zoomMeeting.meetingUrl,
+          meetingId: zoomMeeting.meetingId,
+          password: zoomMeeting.password,
+          startUrl: zoomMeeting.startUrl,
+        };
+
+        // Update booking with meeting details
+        await prisma.consultation.update({
+          where: { id: booking.id },
+          data: {
+            meetingLink: zoomMeeting.meetingUrl,
+            notes: `Zoom Meeting ID: ${zoomMeeting.meetingId}, Password: ${zoomMeeting.password}`,
+          },
+        });
+      } catch (zoomError) {
+        console.error('Failed to create Zoom meeting:', zoomError);
+        // Continue without Zoom meeting - can be added manually later
+        meetingDetails.meetingUrl = 'Will be sent separately';
+      }
+    }
+
+    // Prepare data for emails
+    const emailData = {
+      ...validatedData,
+      preferredDate: formattedDate,
+      bookingId: booking.bookingId,
+      meetingLink: meetingDetails.meetingUrl,
+      meetingPassword: meetingDetails.password,
+      hostUrl: meetingDetails.startUrl, // For internal notification
+    };
+
+    // Send notification emails
+    const emailPromises = [];
 
     // Send notification email to company
-    try {
-      await sendEmail({
-        to: process.env.NEXT_PUBLIC_COMPANY_EMAIL || 'info@yourcompany.com',
+    emailPromises.push(
+      sendEmail({
+        to:
+          process.env.NEXT_PUBLIC_COMPANY_EMAIL || 'jdxwebsolutions@gmail.com',
         subject: `New Consultation Booking - ${validatedData.name} - ${formattedDate}`,
-        html: emailTemplates.consultationNotification(dataWithFormattedDate),
+        html: emailTemplates.consultationNotification(emailData),
         replyTo: validatedData.email,
-      });
-    } catch (emailError) {
-      console.error('Failed to send notification email:', emailError);
-    }
+      })
+    );
 
     // Send confirmation email to client
-    try {
-      await sendEmail({
+    emailPromises.push(
+      sendEmail({
         to: validatedData.email,
         subject: `Consultation Confirmed - ${formattedDate} at ${validatedData.preferredTime}`,
-        html: emailTemplates.consultationConfirmation(dataWithFormattedDate),
-      });
-    } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
-    }
+        html: emailTemplates.consultationConfirmation(emailData),
+      })
+    );
+
+    // Send emails (don't wait for them to complete)
+    Promise.all(emailPromises).catch((error) => {
+      console.error('Email sending error:', error);
+    });
 
     // Optional: Create calendar event
     if (process.env.GOOGLE_CALENDAR_ID) {
       await createCalendarEvent(dataWithFormattedDate);
-    }
-
-    // Check availability function
-    async function checkAvailability(
-      date: string,
-      time: string
-    ): Promise<boolean> {
-      // Implement your availability logic here
-      // For now, return true (always available)
-      // In production, check against calendar API or database
-
-      // Example implementation:
-      // const bookedSlots = await getBookedSlots(date)
-      // return !bookedSlots.includes(time)
-
-      return true;
-    }
-
-    // Generate unique booking ID
-    function generateBookingId(): string {
-      const timestamp = Date.now().toString(36);
-      const randomStr = Math.random().toString(36).substring(2, 7);
-      return `BOOK-${timestamp}-${randomStr}`.toUpperCase();
-    }
-
-    // Optional: Create Google Calendar event
-    async function createCalendarEvent(data: any) {
-      try {
-        // Implement Google Calendar API integration
-        // This is a placeholder for the actual implementation
-        console.log('Creating calendar event:', data);
-
-        // Example with Google Calendar API:
-        // const calendar = google.calendar({ version: 'v3', auth })
-        // const event = {
-        //   summary: `Consultation with ${data.name}`,
-        //   description: data.projectDetails,
-        //   start: { dateTime: combineDateAndTime(data.preferredDate, data.preferredTime) },
-        //   end: { dateTime: addHours(combineDateAndTime(data.preferredDate, data.preferredTime), 1) },
-        //   attendees: [{ email: data.email }],
-        // }
-        // await calendar.events.insert({ calendarId: process.env.GOOGLE_CALENDAR_ID, resource: event })
-      } catch (error) {
-        console.error('Calendar event creation error:', error);
-      }
     }
 
     // Here you would typically:
@@ -160,19 +190,219 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: 'Consultation booked successfully!',
+        success: true,
+        message: 'Your consultation has been booked successfully!',
         booking: {
-          id: Math.random().toString(36).substr(2, 9),
-          ...body,
+          id: booking.bookingId,
+          date: formattedDate,
+          time: validatedData.preferredTime,
+          type: validatedData.consultationType,
+          meetingDetails:
+            validatedData.consultationType === 'video'
+              ? {
+                  url: meetingDetails.meetingUrl,
+                  password: meetingDetails.password,
+                }
+              : undefined,
         },
       },
       { status: 200 }
     );
   } catch (error) {
     console.error('Consultation booking error:', error);
+
     return NextResponse.json(
-      { message: 'Failed to book consultation' },
+      { success: false, message: 'Failed to book consultation' },
       { status: 500 }
     );
+  }
+}
+
+// GET endpoint to check available slots
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+
+    if (!date) {
+      return NextResponse.json(
+        {
+          error: 'Date parameter is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate date format
+    try {
+      parseISO(date);
+    } catch {
+      return NextResponse.json(
+        {
+          error: 'Invalid date format. Use YYYY-MM-DD',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get available slots from database
+    const availableSlots = await getAvailableTimeSlots(date);
+
+    return NextResponse.json({
+      success: true,
+      date,
+      slots: availableSlots,
+    });
+  } catch (error) {
+    console.error('Get available slots error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to fetch available slots',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE endpoint to cancel consultation
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const bookingId = searchParams.get('bookingId');
+
+    if (!bookingId) {
+      return NextResponse.json(
+        {
+          error: 'Booking ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Find the consultation
+    const consultation = await prisma.consultation.findUnique({
+      where: { bookingId },
+    });
+
+    if (!consultation) {
+      return NextResponse.json(
+        {
+          error: 'Booking not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Cancel Zoom meeting if it exists
+    if (consultation.meetingLink && consultation.notes) {
+      const meetingIdMatch = consultation.notes.match(/Zoom Meeting ID: (\d+)/);
+      if (meetingIdMatch) {
+        const meetingId = parseInt(meetingIdMatch[1]);
+        await cancelConsultationMeeting(meetingId);
+      }
+    }
+
+    // Update booking status
+    await prisma.consultation.update({
+      where: { bookingId },
+      data: {
+        status: 'CANCELLED',
+        notes:
+          consultation.notes + '\nCancelled at: ' + new Date().toISOString(),
+      },
+    });
+
+    // Send cancellation emails
+    await sendCancellationEmails(consultation);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Consultation cancelled successfully',
+    });
+  } catch (error) {
+    console.error('Cancel consultation error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to cancel consultation',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+//Helpers
+
+function combineDateAndTime(date: string, time: string): Date {
+  const dateObj = parseISO(date);
+  const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+
+  if (timeParts) {
+    let hours = parseInt(timeParts[1]);
+    const minutes = parseInt(timeParts[2]);
+    const meridiem = timeParts[3].toUpperCase();
+
+    if (meridiem === 'PM' && hours !== 12) {
+      hours += 12;
+    } else if (meridiem === 'AM' && hours === 12) {
+      hours = 0;
+    }
+
+    dateObj.setHours(hours, minutes, 0, 0);
+  }
+
+  return dateObj;
+}
+
+async function sendCancellationEmails(consultation: any) {
+  const emailPromises = [];
+
+  // Send cancellation notification to company
+  emailPromises.push(
+    sendEmail({
+      to: process.env.NEXT_PUBLIC_COMPANY_EMAIL || 'jdxwebsolutions@gmail.com',
+      subject: `Consultation Cancelled - ${consultation.name}`,
+      html: emailTemplates.consultationCancellation({
+        ...consultation,
+        type: 'company',
+      }),
+    })
+  );
+
+  // Send cancellation confirmation to client
+  emailPromises.push(
+    sendEmail({
+      to: consultation.email,
+      subject: 'Your Consultation Has Been Cancelled',
+      html: emailTemplates.consultationCancellation({
+        ...consultation,
+        type: 'client',
+      }),
+    })
+  );
+
+  await Promise.all(emailPromises);
+}
+
+// Optional: Create Google Calendar event
+async function createCalendarEvent(data: any) {
+  try {
+    // Implement Google Calendar API integration
+    // This is a placeholder for the actual implementation
+    console.log('Creating calendar event:', data);
+
+    // Example with Google Calendar API:
+    // const calendar = google.calendar({ version: 'v3', auth })
+    // const event = {
+    //   summary: `Consultation with ${data.name}`,
+    //   description: data.projectDetails,
+    //   start: { dateTime: combineDateAndTime(data.preferredDate, data.preferredTime) },
+    //   end: { dateTime: addHours(combineDateAndTime(data.preferredDate, data.preferredTime), 1) },
+    //   attendees: [{ email: data.email }],
+    // }
+    // await calendar.events.insert({ calendarId: process.env.GOOGLE_CALENDAR_ID, resource: event })
+  } catch (error) {
+    console.error('Calendar event creation error:', error);
   }
 }
