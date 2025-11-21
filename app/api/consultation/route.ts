@@ -10,7 +10,7 @@ import {
   createConsultationMeeting,
   cancelConsultationMeeting,
 } from '@/lib/zoom';
-import { format, parseISO } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import prisma from '@/lib/db';
 
 const consultationSchema = z.object({
@@ -60,10 +60,29 @@ export async function POST(request: NextRequest) {
     const booking = await createConsultationBooking(validatedData);
 
     // Format date for display
-    const formattedDate = format(
-      parseISO(validatedData.preferredDate),
-      'YYYY-MM-DD'
-    );
+    let formattedDate = validatedData.preferredDate;
+    try {
+      // Try to parse and format the date
+      const dateObj = parseISO(validatedData.preferredDate);
+      if (isValid(dateObj)) {
+        formattedDate = format(dateObj, 'MMMM d, yyyy');
+      } else {
+        // If parsing fails, try with regular Date constructor
+        const altDate = new Date(validatedData.preferredDate);
+        if (isValid(altDate)) {
+          formattedDate = format(altDate, 'MMMM d, yyyy');
+        } else {
+          // Use the original string if all parsing fails
+          console.log(
+            'Could not parse date, using original:',
+            validatedData.preferredDate
+          );
+        }
+      }
+    } catch (dateError) {
+      console.log('Date formatting error, using original:', dateError);
+      // Keep the original date string
+    }
     const dataWithFormattedDate = {
       ...validatedData,
       preferredDate: formattedDate,
@@ -207,15 +226,16 @@ export async function POST(request: NextRequest) {
 
 // GET endpoint to check available slots
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
+  const { searchParams } = new URL(request.url);
+  const date = searchParams.get('date');
 
+  console.log('=== API CONSULTATION GET ===');
+  console.log('Received date:', date);
+
+  try {
     if (!date) {
       return NextResponse.json(
-        {
-          error: 'Date parameter is required',
-        },
+        { success: false, error: 'Date is required', slots: [] },
         { status: 400 }
       );
     }
@@ -226,26 +246,100 @@ export async function GET(request: NextRequest) {
     } catch {
       return NextResponse.json(
         {
-          error: 'Invalid date format. Use YYYY-MM-DD',
+          error: 'Invalid date format. Use MMM d, yyyy',
         },
         { status: 400 }
       );
     }
 
     // Get available slots from database
+    const { getAvailableTimeSlots } = await import('@/lib/db-helpers');
     const availableSlots = await getAvailableTimeSlots(date);
+    try {
+      console.log('Attempting to fetch from database...');
 
-    return NextResponse.json({
-      success: true,
-      date,
-      slots: availableSlots,
-    });
+      // Direct database query for debugging
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+
+      // First, let's check if we can connect to the database
+      const timeSlotCount = await prisma.timeSlot.count();
+      console.log('Total time slots in database:', timeSlotCount);
+
+      // Get the day of week
+      const dateObj = new Date(date);
+      const dayOfWeek = dateObj.getDay();
+      console.log('Looking for slots for day:', dayOfWeek);
+
+      // Get time slots for this day
+      const slots = await prisma.timeSlot.findMany({
+        where: {
+          dayOfWeek: dayOfWeek,
+          isActive: true,
+        },
+      });
+      console.log('Found slots for this day:', slots.length);
+      console.log('Slots:', JSON.stringify(slots, null, 2));
+
+      // Format the slots
+      const formattedSlots = slots.map((slot) => {
+        // Convert 24-hour to 12-hour format
+        const [hours, minutes] = slot.startTime.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+        const formattedTime = `${displayHour
+          .toString()
+          .padStart(2, '0')}:${minutes} ${ampm}`;
+
+        return {
+          time: formattedTime,
+          available: true, // For now, all slots are available
+        };
+      });
+
+      console.log('Formatted slots:', formattedSlots);
+
+      await prisma.$disconnect();
+
+      return NextResponse.json({
+        success: true,
+        date,
+        dayOfWeek,
+        totalSlotsInDb: timeSlotCount,
+        slotsForDay: slots.length,
+        slots: formattedSlots,
+      });
+    } catch (dbError: any) {
+      console.error('Database error:', dbError);
+      console.error('Error details:', dbError.message);
+
+      // Return mock data if database fails
+      const mockSlots = [
+        { time: '09:00 AM', available: true },
+        { time: '10:00 AM', available: true },
+        { time: '11:00 AM', available: false },
+        { time: '02:00 PM', available: true },
+        { time: '03:00 PM', available: true },
+        { time: '04:00 PM', available: false },
+        { time: '05:00 PM', available: true },
+      ];
+
+      return NextResponse.json({
+        success: true,
+        date,
+        source: 'mock',
+        error: dbError.message,
+        slots: mockSlots,
+      });
+    }
   } catch (error) {
     console.error('Get available slots error:', error);
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to fetch available slots',
+        slots: [],
       },
       { status: 500 }
     );

@@ -101,7 +101,7 @@ class ZoomAPI {
           mute_upon_entry: options.settings?.mute_upon_entry ?? true,
           watermark: options.settings?.watermark ?? false,
           use_pmi: false,
-          approval_type: 0, // Automatically approve
+          approval_type: 0,
           audio: options.settings?.audio ?? 'both',
           auto_recording: options.settings?.auto_recording ?? 'none',
           waiting_room: options.settings?.waiting_room ?? true,

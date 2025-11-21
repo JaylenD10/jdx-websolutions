@@ -1,7 +1,9 @@
 import { Resend } from 'resend';
 
 // Initialize Resend (recommended email service)
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY)
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 interface EmailOptions {
   to: string;
@@ -11,9 +13,17 @@ interface EmailOptions {
 }
 
 export async function sendEmail({ to, subject, html, replyTo }: EmailOptions) {
+  if (!resend) {
+    console.log('📧 Email would be sent (no API key configured):');
+    console.log('To:', to);
+    console.log('Subject:', subject);
+    console.log('ReplyTo:', replyTo);
+    return { id: 'mock-email-' + Date.now() };
+  }
+
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+      from: process.env.EMAIL_FROM || 'jdxwebsolutions.com',
       to,
       subject,
       html,
