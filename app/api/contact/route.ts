@@ -39,10 +39,8 @@ export async function POST(request: NextRequest) {
       });
     } catch (emailError) {
       console.error('Failed to send notification email:', emailError);
-      // Continue even if notification fails
     }
 
-    // Send confirmation email to user
     try {
       await sendEmail({
         to: validatedData.email,
@@ -51,24 +49,10 @@ export async function POST(request: NextRequest) {
       });
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
-      // Continue even if confirmation fails
     }
 
-    // Here you would typically:
-    // 1. Validate the data
-    // 2. Send email notification
-    // 3. Store in database
-    // 4. Integrate with CRM
-
     // For demo purposes, we'll just log and return success
-    console.log('Contact form submission:', body);
-
-    // Example email sending (you'd need to set up a service like SendGrid, Resend, etc.)
-    // await sendEmail({
-    //   to: 'your-email@example.com',
-    //   subject: `New Contact from ${body.name}`,
-    //   body: formatEmailBody(body)
-    // })
+    console.log('Contact form submission:', submission.id);
 
     return NextResponse.json(
       {
@@ -100,7 +84,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Mock available time slots
-    // In production, check against your calendar/database
     const availableSlots = [
       { time: '09:00 AM', available: true },
       { time: '10:00 AM', available: true },

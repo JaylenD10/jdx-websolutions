@@ -23,7 +23,7 @@ export async function sendEmail({ to, subject, html, replyTo }: EmailOptions) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'jdxwebsolutions.com',
+      from: process.env.EMAIL_FROM || 'nboarding@resend.dev',
       to,
       subject,
       html,

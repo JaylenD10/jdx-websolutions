@@ -83,11 +83,6 @@ export async function POST(request: NextRequest) {
       console.log('Date formatting error, using original:', dateError);
       // Keep the original date string
     }
-    const dataWithFormattedDate = {
-      ...validatedData,
-      preferredDate: formattedDate,
-      bookingId: booking.bookingId,
-    };
 
     // Combine date and time for Zoom
     const meetingDateTime = combineDateAndTime(
@@ -142,7 +137,7 @@ export async function POST(request: NextRequest) {
       bookingId: booking.bookingId,
       meetingLink: meetingDetails.meetingUrl,
       meetingPassword: meetingDetails.password,
-      hostUrl: meetingDetails.startUrl, // For internal notification
+      hostUrl: meetingDetails.startUrl,
     };
 
     // Send notification emails
@@ -173,26 +168,7 @@ export async function POST(request: NextRequest) {
       console.error('Email sending error:', error);
     });
 
-    // Optional: Create calendar event
-    if (process.env.GOOGLE_CALENDAR_ID) {
-      await createCalendarEvent(dataWithFormattedDate);
-    }
-
-    // Here you would typically:
-    // 1. Check calendar availability
-    // 2. Create calendar event
-    // 3. Send confirmation emails
-    // 4. Store in database
-
     console.log('Consultation booking:', body);
-
-    // Example integration with calendar service
-    // await createCalendarEvent({
-    //   title: `Consultation with ${body.name}`,
-    //   date: body.preferredDate,
-    //   time: body.preferredTime,
-    //   type: body.consultationType
-    // })
 
     return NextResponse.json(
       {
@@ -530,25 +506,62 @@ export async function PATCH(request: NextRequest) {
 
 //Helpers
 
-function combineDateAndTime(date: string, time: string): Date {
-  const dateObj = parseISO(date);
-  const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+function combineDateAndTime(dateStr: string, timeStr: string): Date {
+  try {
+    console.log('Combining date and time:', { dateStr, timeStr });
 
-  if (timeParts) {
-    let hours = parseInt(timeParts[1]);
-    const minutes = parseInt(timeParts[2]);
-    const meridiem = timeParts[3].toUpperCase();
-
-    if (meridiem === 'PM' && hours !== 12) {
-      hours += 12;
-    } else if (meridiem === 'AM' && hours === 12) {
-      hours = 0;
+    // Parse the date
+    let dateObj: Date;
+    if (dateStr.includes('-')) {
+      dateObj = parseISO(dateStr);
+    } else {
+      dateObj = new Date(dateStr);
     }
 
-    dateObj.setHours(hours, minutes, 0, 0);
-  }
+    if (!isValid(dateObj)) {
+      console.error('Invalid date:', dateStr);
+      // Use tomorrow as fallback
+      dateObj = new Date();
+      dateObj.setDate(dateObj.getDate() + 1);
+    }
 
-  return dateObj;
+    // Parse the time (handle AM/PM format)
+    const timeParts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+
+    if (timeParts) {
+      let hours = parseInt(timeParts[1]);
+      const minutes = parseInt(timeParts[2]);
+      const meridiem = timeParts[3].toUpperCase();
+
+      // Convert to 24-hour format
+      if (meridiem === 'PM' && hours !== 12) {
+        hours += 12;
+      } else if (meridiem === 'AM' && hours === 12) {
+        hours = 0;
+      }
+
+      dateObj.setHours(hours, minutes, 0, 0);
+    } else {
+      // Try parsing as 24-hour format
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      if (!isNaN(hours)) {
+        dateObj.setHours(hours, minutes || 0, 0, 0);
+      } else {
+        // Default to noon if time parsing fails
+        dateObj.setHours(12, 0, 0, 0);
+      }
+    }
+
+    console.log('Combined date/time:', dateObj.toISOString());
+    return dateObj;
+  } catch (error) {
+    console.error('Error combining date and time:', error);
+    // Return tomorrow at noon as fallback
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(12, 0, 0, 0);
+    return tomorrow;
+  }
 }
 
 async function sendRescheduleEmails(
@@ -625,26 +638,4 @@ async function sendCancellationEmails(consultation: any) {
   );
 
   await Promise.all(emailPromises);
-}
-
-// Optional: Create Google Calendar event
-async function createCalendarEvent(data: any) {
-  try {
-    // Implement Google Calendar API integration
-    // This is a placeholder for the actual implementation
-    console.log('Creating calendar event:', data);
-
-    // Example with Google Calendar API:
-    // const calendar = google.calendar({ version: 'v3', auth })
-    // const event = {
-    //   summary: `Consultation with ${data.name}`,
-    //   description: data.projectDetails,
-    //   start: { dateTime: combineDateAndTime(data.preferredDate, data.preferredTime) },
-    //   end: { dateTime: addHours(combineDateAndTime(data.preferredDate, data.preferredTime), 1) },
-    //   attendees: [{ email: data.email }],
-    // }
-    // await calendar.events.insert({ calendarId: process.env.GOOGLE_CALENDAR_ID, resource: event })
-  } catch (error) {
-    console.error('Calendar event creation error:', error);
-  }
 }
