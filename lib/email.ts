@@ -188,6 +188,17 @@ export const emailTemplates = {
               <strong>Time:</strong> ${data.preferredTime}<br>
               <strong>Type:</strong> ${data.consultationType}
             </div>
+            <div>
+              <h2>Your Zoom Meeting Confirmation</h2>
+              <p>Hi ${data.name},</p>
+              <p>Your meeting is scheduled for 
+              ${data.preferredDate} 
+              ${data.preferredTime}.
+              </p>
+              <p>You can join the meeting using the following link:</p>
+              <a href=${data.meetingLink}>Join Meeting</a>
+              <p>Meeting ID: ${data.meetingId}</p>
+            </div>
             <div class="field">
               <div class="label">Client Name:</div>
               <div class="value">${data.name}</div>
@@ -250,22 +261,29 @@ export const emailTemplates = {
               <p><strong>Time:</strong> ${data.preferredTime}</p>
               <p><strong>Type:</strong> ${data.consultationType}</p>
               ${
-                data.consultationType === 'video'
+                data.consultationType === 'Video'
                   ? '<p><strong>Meeting Link:</strong> Will be sent 30 minutes before the meeting</p>'
                   : ''
               }
               ${
-                data.consultationType === 'phone'
+                data.consultationType === 'Phone'
                   ? '<p><strong>Phone:</strong> We will call you at the provided number</p>'
                   : ''
               }
               ${
-                data.consultationType === 'in-person'
+                data.consultationType === 'In-Person'
                   ? '<p><strong>Location:</strong> 123 Business St, City, State 12345</p>'
                   : ''
               }
             </div>
-            
+            <div>
+              <h2>Your Zoom Meeting Confirmation</h2>
+              <p>Hi ${data.name},</p>
+              <p>Your meeting is scheduled for ${data.meetingDateTime}.</p>
+              <p>You can join the meeting using the following link:</p>
+              <a href=${data.meetingLink}>Join Meeting</a>
+              <p>Meeting ID: ${data.meetingId}</p>
+            </div>
             <h3>What to Prepare</h3>
             <ul>
               <li>Any specific requirements or features you'd like to discuss</li>
@@ -335,7 +353,7 @@ export const emailTemplates = {
             <p style="margin-top: 20px;">
               <strong>Note:</strong> The client has been notified of the cancellation. 
               ${
-                data.consultationType === 'video'
+                data.consultationType === 'Video'
                   ? 'The Zoom meeting has been cancelled automatically.'
                   : ''
               }

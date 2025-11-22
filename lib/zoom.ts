@@ -1,5 +1,4 @@
 import axios from 'axios';
-import jwt from 'jsonwebtoken';
 
 interface ZoomMeetingOptions {
   topic: string;
