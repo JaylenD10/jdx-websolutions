@@ -136,7 +136,7 @@ export default function Contact() {
               <h2 className="text-2xl font-bold text-green-800 mb-2">
                 Contact Form Submitted Successfully!
               </h2>
-              <p className="text-green-700">We'll contact you shortly.</p>
+              <p className="text-green-700">We&#39;ll contact you shortly.</p>
             </motion.div>
           ) : (
             <>

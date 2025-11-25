@@ -1,7 +1,8 @@
 import { Resend } from 'resend';
+import { EmailData } from './types';
 
 // Initialize Resend (recommended email service)
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
@@ -12,7 +13,12 @@ interface EmailOptions {
   replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, replyTo }: EmailOptions) {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  replyTo,
+}: EmailOptions): Promise<{ id: string } | undefined> {
   if (!resend) {
     console.log('📧 Email would be sent (no API key configured):');
     console.log('To:', to);
@@ -35,7 +41,7 @@ export async function sendEmail({ to, subject, html, replyTo }: EmailOptions) {
       throw new Error('Failed to send email');
     }
 
-    return data;
+    return data ?? undefined;
   } catch (error) {
     console.error('Email service error:', error);
     throw error;
@@ -44,7 +50,7 @@ export async function sendEmail({ to, subject, html, replyTo }: EmailOptions) {
 
 // Email templates
 export const emailTemplates = {
-  contactFormNotification: (data: any) => `
+  contactFormNotification: (data: EmailData): string => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -109,7 +115,7 @@ export const emailTemplates = {
     </html>
   `,
 
-  contactFormConfirmation: (name: string) => `
+  contactFormConfirmation: (name: string): string => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -162,7 +168,7 @@ export const emailTemplates = {
     </html>
   `,
 
-  consultationNotification: (data: any) => `
+  consultationNotification: (data: EmailData): string => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -197,7 +203,7 @@ export const emailTemplates = {
               </p>
               <p>You can join the meeting using the following link:</p>
               <a href=${data.meetingLink}>Join Meeting</a>
-              <p>Meeting ID: ${data.meetingId}</p>
+              <p>Meeting ID: ${data.bookingId}</p>
             </div>
             <div class="field">
               <div class="label">Client Name:</div>
@@ -233,7 +239,7 @@ export const emailTemplates = {
     </html>
   `,
 
-  consultationConfirmation: (data: any) => `
+  consultationConfirmation: (data: EmailData): string => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -249,7 +255,7 @@ export const emailTemplates = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Consultation Confirmed!</h1>
+            <h1>✅ Consultation Confirmed!</h1>
           </div>
           <div class="content">
             <p>Dear ${data.name},</p>
@@ -279,10 +285,12 @@ export const emailTemplates = {
             <div>
               <h2>Your Zoom Meeting Confirmation</h2>
               <p>Hi ${data.name},</p>
-              <p>Your meeting is scheduled for ${data.meetingDateTime}.</p>
+              <p>Your meeting is scheduled for ${data.preferredDate}
+              ${data.preferredTime}.
+              </p>
               <p>You can join the meeting using the following link:</p>
               <a href=${data.meetingLink}>Join Meeting</a>
-              <p>Meeting ID: ${data.meetingId}</p>
+              <p>Meeting ID: ${data.bookingId}</p>
             </div>
             <h3>What to Prepare</h3>
             <ul>
@@ -305,7 +313,7 @@ export const emailTemplates = {
     </html>
   `,
 
-  consultationCancellation: (data: any) => `<!DOCTYPE html>
+  consultationCancellation: (data: EmailData): string => `<!DOCTYPE html>
   <html>
     <head>
       <style>

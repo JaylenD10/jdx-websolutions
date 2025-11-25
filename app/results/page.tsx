@@ -265,7 +265,7 @@ export default function ResultsPage() {
           >
             <h1 className="text-5xl font-bold mb-4">Our Success Stories</h1>
             <p className="text-xl max-w-2xl mx-auto">
-              Real results from real clients. Discover how we've helped
+              Real results from real clients. Discover how we&#39;ve helped
               businesses transform their digital presence.
             </p>
           </motion.div>
@@ -439,7 +439,8 @@ export default function ResultsPage() {
             Ready to Be Our Next Success Story?
           </h2>
           <p className="text-xl mb-8">
-            Let's work together to achieve remarkable results for your business
+            Let&#39;s work together to achieve remarkable results for your
+            business
           </p>
           <div className="flex gap-4 justify-center">
             <Link

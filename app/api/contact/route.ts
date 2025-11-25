@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       date,
       slots: availableSlots,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to fetch available slots' },
       { status: 500 }

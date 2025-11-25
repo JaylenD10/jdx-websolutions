@@ -168,8 +168,6 @@ export default function Consultation() {
   ];
 
   // Get minimum date (today)
-  const today = new Date().toISOString().split("T")[0];
-
   return (
     <div className="py-20 bg-gray-50">
       <div className="container mx-auto px-6">
@@ -183,8 +181,8 @@ export default function Consultation() {
               Book a Free Consultation
             </h1>
             <p className="text-xl text-gray-600">
-              Let's discuss your project and how we can help bring your vision
-              to life
+              Let&#39;s discuss your project and how we can help bring your
+              vision to life
             </p>
           </div>
 
@@ -199,7 +197,7 @@ export default function Consultation() {
                 Consultation Booked Successfully!
               </h2>
               <p className="text-green-700">
-                We'll send you a confirmation email shortly with all the
+                We&#39;ll send you a confirmation email shortly with all the
                 details.
               </p>
             </motion.div>
@@ -301,7 +299,7 @@ export default function Consultation() {
                             Phone Call
                           </h3>
                           <p className="text-sm text-gray-600">
-                            We'll call you (15-30 min)
+                            We&#39;ll call you (15-30 min)
                           </p>
                           <p className="text-xs text-gray-500 mt-2">
                             Quick consultation

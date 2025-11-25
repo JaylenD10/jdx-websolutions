@@ -1,6 +1,25 @@
 import axios from 'axios';
+import { ZoomMeetingResult } from './types';
 
 interface ZoomMeetingOptions {
+  topic: string;
+  start_time: Date;
+  duration: number;
+  agenda?: string;
+  password?: string;
+  settings?: {
+    host_video?: boolean;
+    participant_video?: boolean;
+    join_before_host?: boolean;
+    mute_upon_entry?: boolean;
+    watermark?: boolean;
+    audio?: 'telephony' | 'voip' | 'both';
+    auto_recording?: 'none' | 'local' | 'cloud';
+    waiting_room?: boolean;
+  };
+}
+
+interface ZoomMeetingUpdateData {
   topic: string;
   start_time: Date;
   duration: number;
@@ -65,12 +84,14 @@ class ZoomAPI {
         Date.now() + (response.data.expires_in - 300) * 1000;
 
       return this.accessToken!;
-    } catch (error: any) {
-      console.error(
-        'Failed to get Zoom access token:',
-        error.response?.data || error.message
-      );
-      throw new Error('Failed to authenticate with Zoom');
+    } catch (e: unknown) {
+      console.error(e);
+      if (e instanceof Error) {
+        console.error(`Failed to get Zoom access token: ${e.message}`);
+        throw new Error('Failed to authenticate with Zoom');
+      } else {
+        throw new Error('An unknown error occurred');
+      }
     }
   }
 
@@ -122,12 +143,14 @@ class ZoomAPI {
       );
 
       return response.data;
-    } catch (error: any) {
-      console.error(
-        'Failed to create Zoom meeting:',
-        error.response?.data || error.message
-      );
-      throw new Error('Failed to create Zoom meeting');
+    } catch (e: unknown) {
+      console.error(e);
+      if (e instanceof Error) {
+        console.error('Failed to create Zoom meeting:', e.message);
+        throw new Error('Failed to create Zoom meeting');
+      } else {
+        throw new Error('An unknown error occurred');
+      }
     }
   }
 
@@ -139,11 +162,14 @@ class ZoomAPI {
     try {
       const accessToken = await this.getAccessToken();
 
-      const updateData: any = {};
+      const updateData: ZoomMeetingUpdateData = {
+        topic: '',
+        start_time: new Date(),
+        duration: 0,
+      };
 
       if (updates.topic) updateData.topic = updates.topic;
-      if (updates.start_time)
-        updateData.start_time = updates.start_time.toISOString();
+      if (updates.start_time) updateData.start_time = updates.start_time;
       if (updates.duration) updateData.duration = updates.duration;
       if (updates.agenda) updateData.agenda = updates.agenda;
       if (updates.settings) updateData.settings = updates.settings;
@@ -154,12 +180,12 @@ class ZoomAPI {
           'Content-Type': 'application/json',
         },
       });
-    } catch (error: any) {
-      console.error(
-        'Failed to update Zoom meeting:',
-        error.response?.data || error.message
-      );
-      throw new Error('Failed to update Zoom meeting');
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Failed to update Zoom meeting:', error.message);
+        throw new Error('Failed to update Zoom meeting');
+      }
+      console.error(error);
     }
   }
 
@@ -173,12 +199,12 @@ class ZoomAPI {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-    } catch (error: any) {
-      console.error(
-        'Failed to delete Zoom meeting:',
-        error.response?.data || error.message
-      );
-      throw new Error('Failed to delete Zoom meeting');
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        console.error('Failed to delete Zoom meeting:', e.message);
+        throw new Error('Failed to delete Zoom meeting');
+      }
+      console.error(e);
     }
   }
 
@@ -197,12 +223,14 @@ class ZoomAPI {
       );
 
       return response.data;
-    } catch (error: any) {
-      console.error(
-        'Failed to get Zoom meeting:',
-        error.response?.data || error.message
-      );
-      throw new Error('Failed to get Zoom meeting');
+    } catch (e: unknown) {
+      console.error(e);
+      if (e instanceof Error) {
+        console.error('Failed to get Zoom meeting:', e.message);
+        throw new Error('Failed to get Zoom meeting');
+      } else {
+        throw new Error('An unknown error occurred');
+      }
     }
   }
 
@@ -227,12 +255,7 @@ export async function createConsultationMeeting(
   date: Date,
   consultationType: string,
   projectDetails?: string
-): Promise<{
-  meetingUrl: string;
-  meetingId: number;
-  password: string;
-  startUrl: string;
-}> {
+): Promise<ZoomMeetingResult> {
   try {
     const meeting = await zoomAPI.createMeeting({
       topic: `Consultation with ${name}`,

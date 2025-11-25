@@ -517,9 +517,10 @@ export default function PricingPage() {
                 14-Day Money Back Guarantee
               </h2>
               <p className="text-lg text-gray-600 mb-8">
-                We're confident in our ability to deliver exceptional results.
-                If you're not completely satisfied with our services within the
-                first 14 days, we'll provide a full refund—no questions asked.
+                We&#39;re confident in our ability to deliver exceptional
+                results. If you&#39;re not completely satisfied with our
+                services within the first 14 days, we&#39;ll provide a full
+                refund—no questions asked.
               </p>
               <div className="grid md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-lg shadow-md">
@@ -552,8 +553,9 @@ export default function PricingPage() {
           <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-12 text-white text-center">
             <h2 className="text-3xl font-bold mb-4">Need a Custom Solution?</h2>
             <p className="text-xl mb-8 max-w-2xl mx-auto">
-              Every business is unique. If our standard plans don't meet your
-              needs, let's create a custom package that's perfect for you.
+              Every business is unique. If our standard plans don&#39;t meet
+              your needs, let&#39;s create a custom package that&#39;s perfect
+              for you.
             </p>
             <div className="flex gap-4 justify-center">
               <Link

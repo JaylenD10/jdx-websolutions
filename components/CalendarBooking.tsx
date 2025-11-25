@@ -51,7 +51,7 @@ const CalendarBooking: React.FC<CalendarBookingProps> = ({
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
-  const [_error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // Fetch available time slots when date changes
   useEffect(() => {

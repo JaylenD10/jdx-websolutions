@@ -86,8 +86,8 @@ export default function About() {
           >
             <h1 className="text-5xl font-bold mb-4">About Us</h1>
             <p className="text-xl max-w-2xl mx-auto">
-              We're a team of passionate developers, designers, and strategists
-              dedicated to creating exceptional digital solutions
+              We&#39;re a team of passionate developers, designers, and
+              strategists dedicated to creating exceptional digital solutions
             </p>
           </motion.div>
         </div>
@@ -109,10 +109,10 @@ export default function About() {
                 full-service software development company.
               </p>
               <p className="text-gray-600 mb-4">
-                Over the years, we've worked with startups, small businesses,
-                and enterprises, delivering solutions that drive real results.
-                Our commitment to quality and innovation has made us a trusted
-                partner for companies worldwide.
+                Over the years, we&#39;ve worked with startups, small
+                businesses, and enterprises, delivering solutions that drive
+                real results. Our commitment to quality and innovation has made
+                us a trusted partner for companies worldwide.
               </p>
               <p className="text-gray-600">
                 Today, we continue to push boundaries, exploring new
@@ -217,7 +217,7 @@ export default function About() {
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to Work With Us?</h2>
           <p className="text-xl text-gray-600 mb-8">
-            Let's create something amazing together
+            Let&#39;s create something amazing together
           </p>
           <div className="flex gap-4 justify-center">
             <Link

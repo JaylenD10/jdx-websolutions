@@ -12,6 +12,7 @@ import {
 } from '@/lib/zoom';
 import { format, isValid, parseISO } from 'date-fns';
 import prisma from '@/lib/db';
+import { Consultation } from '@/lib/types';
 
 const consultationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -229,8 +230,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Get available slots from database
-    const { getAvailableTimeSlots } = await import('@/lib/db-helpers');
-    const availableSlots = await getAvailableTimeSlots(date);
     try {
       console.log('Attempting to fetch from database...');
 
@@ -286,11 +285,15 @@ export async function GET(request: NextRequest) {
         slotsForDay: slots.length,
         slots: formattedSlots,
       });
-    } catch (dbError: any) {
-      console.error('Database error:', dbError);
-      console.error('Error details:', dbError.message);
+    } catch (dbError: unknown) {
+      if (dbError instanceof Error) {
+        console.error('Database error:', dbError);
+        console.error('Error details:', dbError.message);
 
-      // Return mock data if database fails
+        // Return mock data if database fails
+      } else {
+        console.error('Unknown database error occured:', dbError);
+      }
       const mockSlots = [
         { time: '09:00 AM', available: true },
         { time: '10:00 AM', available: true },
@@ -300,12 +303,11 @@ export async function GET(request: NextRequest) {
         { time: '04:00 PM', available: false },
         { time: '05:00 PM', available: true },
       ];
-
       return NextResponse.json({
         success: true,
         date,
         source: 'mock',
-        error: dbError.message,
+        error: dbError,
         slots: mockSlots,
       });
     }
@@ -565,10 +567,10 @@ function combineDateAndTime(dateStr: string, timeStr: string): Date {
 }
 
 async function sendRescheduleEmails(
-  consultation: any,
+  consultation: Consultation,
   newDate: string,
   newTime: string
-) {
+): Promise<void> {
   const emailPromises = [];
 
   const oldDate = format(consultation.preferredDate, 'MMMM d, yyyy');
@@ -610,18 +612,32 @@ async function sendRescheduleEmails(
   });
 }
 
-async function sendCancellationEmails(consultation: any) {
+async function sendCancellationEmails(
+  consultation: Consultation
+): Promise<void> {
   const emailPromises = [];
+  const formattedDate = format(consultation.preferredDate, 'MMMM d, yyyy');
+  const companyCancellationData = {
+    name: consultation.name,
+    email: consultation.email,
+    preferredDate: formattedDate,
+    preferredTime: consultation.preferredTime,
+    type: 'company' as const,
+  };
+  const clientCancellationData = {
+    name: consultation.name,
+    email: consultation.email,
+    preferredDate: formattedDate,
+    preferredTime: consultation.preferredTime,
+    type: 'client' as const,
+  };
 
   // Send cancellation notification to company
   emailPromises.push(
     sendEmail({
       to: process.env.NEXT_PUBLIC_COMPANY_EMAIL || 'jdxwebsolutions@gmail.com',
       subject: `Consultation Cancelled - ${consultation.name}`,
-      html: emailTemplates.consultationCancellation({
-        ...consultation,
-        type: 'company',
-      }),
+      html: emailTemplates.consultationCancellation(companyCancellationData),
     })
   );
 
@@ -630,10 +646,7 @@ async function sendCancellationEmails(consultation: any) {
     sendEmail({
       to: consultation.email,
       subject: 'Your Consultation Has Been Cancelled',
-      html: emailTemplates.consultationCancellation({
-        ...consultation,
-        type: 'client',
-      }),
+      html: emailTemplates.consultationCancellation(clientCancellationData),
     })
   );
 

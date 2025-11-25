@@ -94,7 +94,7 @@ export default function Home() {
             Ready to Start Your Project?
           </h2>
           <p className="text-xl mb-8">
-            Let's discuss how we can help your business grow
+            Let&#39;s discuss how we can help your business grow
           </p>
           <Link
             href="/contact"
